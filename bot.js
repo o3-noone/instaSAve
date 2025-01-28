@@ -48,11 +48,26 @@ async function downloadInstagramPost(url, chatId) {
                     return;
                 }
 
-                const downloadedFile = files.find(file => file.endsWith('.mp4') || file.endsWith('.jpg') || file.endsWith('.png'));
+                // Faqat .mp4 faylni tanlash
+                const downloadedFile = files.find(file => file.endsWith('.mp4'));
                 if (downloadedFile) {
                     bot.sendMessage(chatId, `✅ Fayl muvaffaqiyatli yuklandi: ${downloadedFile}`);
+
+                    // Faylni yuborish
+                    const filePath = path.join(DOWNLOADS_DIR, downloadedFile);
+                    bot.sendDocument(chatId, filePath) // Rasm yoki fayl yuborish
+                        .then(() => {
+                            // Fayl yuborilgandan so'ng uni o'chirish
+                            fs.unlink(filePath, (err) => {
+                                if (err) {
+                                    bot.sendMessage(chatId, `❌ Faylni o'chirishda xato yuz berdi: ${err.message}`);
+                                } else {
+                                    console.log(`${downloadedFile} muvaffaqiyatli o'chirildi.`);
+                                }
+                            });
+                        });
                 } else {
-                    bot.sendMessage(chatId, '❌ Yuklangan fayl topilmadi.');
+                    bot.sendMessage(chatId, '❌ Faqat video fayl (.mp4) topilmadi.');
                 }
             });
         });
@@ -61,6 +76,7 @@ async function downloadInstagramPost(url, chatId) {
         bot.sendMessage(chatId, '❌ Instagram videoni yoki postni yuklashda xato yuz berdi.');
     }
 }
+
 
 // Bot buyruqlari
 bot.onText(/\/start/, (msg) => {
