@@ -16,6 +16,7 @@
     "ytdl-core": "^4.11.5"
   },
   "engines": {
-    "node": "18x"
-  }
+  "node": "18x",
+  "npm": "unspecified"
+}
 }
