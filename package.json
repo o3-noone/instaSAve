@@ -4,7 +4,7 @@
   "main": "bot.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-     "heroku-postbuild": "npm rebuild"
+    "heroku-postbuild": "npm rebuild"
   },
   "keywords": [],
   "author": "",
@@ -17,7 +17,7 @@
     "ytdl-core": "^4.11.5"
   },
   "engines": {
-  "node": "22.13.0",
-  "npm": "10.9.2"
-}
+    "node": "22.13.0",
+    "npm": "10.9.2"
+  }
 }
