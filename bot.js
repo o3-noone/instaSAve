@@ -17,7 +17,7 @@ function cleanUrl(url) {
 }
 
 function cleanFileName(title) {
-    return title.replace(/[\\/:*?"<>|]/g, ''); // Maxsus belgilarni olib tashlash
+    return title.replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, '_'); // Bo'sh joylarni pastki chiziqcha bilan almashtirish
 }
 
 async function getVideoTitle(url) {
@@ -44,95 +44,38 @@ async function downloadYouTubeVideo(url, chatId) {
         const videoTitle = await getVideoTitle(cleanUrlResult);
         const cleanTitle = cleanFileName(videoTitle);
 
-        // Prevyu rasmini yuklash (png formatida)
-        const thumbnailCommand = `yt-dlp --skip-download --write-thumbnail --convert-thumbnails png -o "${DOWNLOADS_DIR}/%(title)s.%(ext)s" ${cleanUrlResult}`;
-        
-        exec(thumbnailCommand, async (err) => {
-            if (err) {
-                bot.sendMessage(chatId, '❌ Prevyu rasmini yuklashda xato yuz berdi.');
-                return;
-            }
+        // Video yuklashni boshlash (mp4 formatida)
+        const videoCommand = `yt-dlp -f bestvideo+bestaudio --merge-output-format mp4 ${cleanUrlResult} -o "${DOWNLOADS_DIR}/${cleanTitle}.%(ext)s" --newline --restrict-filenames`;
+        const process = exec(videoCommand);
 
-            // Prevyu rasmini topish
-            const files = fs.readdirSync(DOWNLOADS_DIR);
-            const thumbnailFile = files.find(file => file.endsWith('.png'));
+        process.stderr.on('data', (data) => {
+            console.error(`stderr: ${data}`);
+            bot.sendMessage(chatId, `❌ Xato: ${data}`);
+        });
 
-            if (thumbnailFile) {
-                const thumbnailPath = path.join(DOWNLOADS_DIR, thumbnailFile);
+        process.on('close', (code) => {
+            if (code === 0) {
+                const files = fs.readdirSync(DOWNLOADS_DIR);
+                const downloadedFile = files.find(file => file.startsWith(cleanTitle) && file.endsWith('.mp4'));
 
-                // Prevyu rasmini Telegramga yuborish
-                await bot.sendPhoto(chatId, thumbnailPath);
+                if (downloadedFile) {
+                    const filePath = path.join(DOWNLOADS_DIR, downloadedFile);
 
-                // Prevyu rasmini o'chirish
-                fs.unlinkSync(thumbnailPath);
-
-                // Agar havola Shorts bo'lsa, to'liq videoni yuklash
-                if (cleanUrlResult.includes('/shorts/')) {
-                    const progressMessage = await bot.sendMessage(chatId, '⏳ YouTube Shorts videosini yuklanyapti...');
-
-                    // Video yuklashni boshlash (mp4 formatida)
-                    const videoCommand = `yt-dlp -f bestvideo+bestaudio --merge-output-format mp4 ${cleanUrlResult} -o "${DOWNLOADS_DIR}/${cleanTitle}.%(ext)s" --newline --restrict-filenames`;
-                    const process = exec(videoCommand);
-
-                    let downloadedBytes = 0;
-                    let totalBytes = 0;
-
-                    process.stdout.on('data', (data) => {
-                        const progressMatch = data.match(/\[download\]\s+(\d+\.\d+)%\s+of\s+~?(\d+\.\d+)(\w+)\s+at/);
-                        if (progressMatch) {
-                            const percent = parseFloat(progressMatch[1]);
-                            const size = parseFloat(progressMatch[2]);
-                            const unit = progressMatch[3];
-
-                            const currentBytes = size * (unit === 'MiB' ? 1024 * 1024 : unit === 'KiB' ? 1024 : 1);
-                            totalBytes = totalBytes || currentBytes / (percent / 100);
-
-                            if (currentBytes - downloadedBytes >= 5 * 1024 * 1024) {
-                                bot.editMessageText(`📥 Yuklangan: ${percent.toFixed(2)}% (${(currentBytes / (1024 * 1024)).toFixed(2)} MB)`, {
-                                    chat_id: chatId,
-                                    message_id: progressMessage.message_id,
-                                });
-                                downloadedBytes = currentBytes;
-                            }
-                        }
-                    });
-
-                    process.stderr.on('data', (data) => {
-                        console.error(`stderr: ${data}`);
-                        bot.sendMessage(chatId, `❌ Xato: ${data}`);
-                    });
-
-                    process.on('close', (code) => {
-                        if (code === 0) {
-                            const files = fs.readdirSync(DOWNLOADS_DIR);
-                            const downloadedFile = files.find(file => file.startsWith(cleanTitle) && file.endsWith('.mp4'));
-
-                            if (downloadedFile) {
-                                const filePath = path.join(DOWNLOADS_DIR, downloadedFile);
-
-                                // Video faylini yuborish (video nomi bilan)
-                                bot.sendVideo(chatId, filePath, { caption: videoTitle })
-                                    .then(() => {
-                                        // Video yuborilgandan so'ng faylni o'chirish
-                                        fs.unlinkSync(filePath);
-                                    })
-                                    .catch((err) => {
-                                        console.error('Video yuborishda xato:', err);
-                                        bot.sendMessage(chatId, '❌ Videoni yuborishda xato yuz berdi.');
-                                    });
-                            } else {
-                                bot.sendMessage(chatId, '❌ Yuklangan fayl topilmadi.');
-                            }
-                        } else {
-                            bot.sendMessage(chatId, '❌ Yuklashda xato yuz berdi.');
-                        }
-                    });
+                    // Video faylini yuborish (video nomisiz)
+                    bot.sendVideo(chatId, filePath)
+                        .then(() => {
+                            // Video yuborilgandan so'ng faylni o'chirish
+                            fs.unlinkSync(filePath);
+                        })
+                        .catch((err) => {
+                            console.error('Video yuborishda xato:', err);
+                            bot.sendMessage(chatId, '❌ Videoni yuborishda xato yuz berdi.');
+                        });
                 } else {
-                    // Agar havola Shorts bo'lmasa, faqat prevyu rasmini yuborish
-                    bot.sendMessage(chatId, '✅ Prevyu rasmi muvaffaqiyatli yuborildi. Faqat YouTube Shorts havolalari uchun to‘liq video yuklanadi.');
+                    bot.sendMessage(chatId, '❌ Yuklangan fayl topilmadi.');
                 }
             } else {
-                bot.sendMessage(chatId, '❌ Prevyu rasmi topilmadi.');
+                bot.sendMessage(chatId, '❌ Yuklashda xato yuz berdi.');
             }
         });
     } catch (err) {
@@ -141,7 +84,7 @@ async function downloadYouTubeVideo(url, chatId) {
 }
 
 bot.onText(/\/start/, (msg) => {
-    bot.sendMessage(msg.chat.id, '👋 Salom! YouTube video havolasini yuboring. Agar bu YouTube Shorts bo‘lsa, to‘liq videoni yuklab beraman, aks holda faqat prevyu rasmini yuboraman.');
+    bot.sendMessage(msg.chat.id, '👋 Salom! YouTube video havolasini yuboring. Men uni yuklab, Telegramga yuboraman.');
 });
 
 const youtubePattern = /https?:\/\/(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)[A-Za-z0-9_-]+/;
@@ -151,7 +94,6 @@ bot.on('message', (msg) => {
     const text = msg.text;
 
     if (youtubePattern.test(text)) {
-        bot.sendMessage(chatId, '⏳ YouTube videosini tahlil qilayapman...');
         downloadYouTubeVideo(text, chatId);
     } else if (!text.startsWith('/')) {
         bot.sendMessage(chatId, '❌ Iltimos, haqiqiy YouTube video havolasini yuboring.');
