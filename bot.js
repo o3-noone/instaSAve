@@ -44,25 +44,24 @@ async function downloadYouTubeVideo(url, chatId) {
         const videoTitle = await getVideoTitle(cleanUrlResult);
         const cleanTitle = cleanFileName(videoTitle);
 
-        // Video yuklashni boshlash (mp4 formatida)
-        const videoCommand = `yt-dlp -f bestvideo+bestaudio --merge-output-format mp4 ${cleanUrlResult} -o "${DOWNLOADS_DIR}/${cleanTitle}.%(ext)s" --newline --restrict-filenames`;
+        // Video yuklashni boshlash (eng yuqori sifatda)
+        const videoCommand = `yt-dlp -f best ${cleanUrlResult} -o "${DOWNLOADS_DIR}/${cleanTitle}.%(ext)s" --restrict-filenames`;
         const process = exec(videoCommand);
 
         process.stderr.on('data', (data) => {
             console.error(`stderr: ${data}`);
-            bot.sendMessage(chatId, `❌ Xato: ${data}`);
         });
 
         process.on('close', (code) => {
             if (code === 0) {
                 const files = fs.readdirSync(DOWNLOADS_DIR);
-                const downloadedFile = files.find(file => file.startsWith(cleanTitle) && file.endsWith('.mp4'));
+                const downloadedFile = files.find(file => file.startsWith(cleanTitle));
 
                 if (downloadedFile) {
                     const filePath = path.join(DOWNLOADS_DIR, downloadedFile);
 
-                    // Video faylini yuborish (video nomisiz)
-                    bot.sendVideo(chatId, filePath)
+                    // Video faylini yuborish (asl formatida)
+                    bot.sendDocument(chatId, filePath)
                         .then(() => {
                             // Video yuborilgandan so'ng faylni o'chirish
                             fs.unlinkSync(filePath);
